@@ -1,0 +1,22 @@
+{
+  "sources": [
+    {
+      "type": "file",
+      "path": "sample-data/sample-blog-post.md",
+      "title": "Why Async-First Teams Outperform Sync-Heavy Ones",
+      "priority": "high"
+    },
+    {
+      "type": "url",
+      "url": "https://blog.pragmaticengineer.com/",
+      "title": "Pragmatic Engineer Blog",
+      "priority": "normal"
+    }
+  ],
+  "platforms": ["twitter", "linkedin", "email", "instagram", "youtube"],
+  "brand_voice": {
+    "tone": "professional but approachable",
+    "audience": "B2B SaaS professionals and engineering leaders",
+    "avoid": ["jargon", "clickbait", "excessive emojis", "hype words like 'game-changer'"]
+  }
+}

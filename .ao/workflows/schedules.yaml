@@ -1,0 +1,5 @@
+schedules:
+  - id: daily-repurpose
+    cron: "0 8 * * 1-5"
+    workflow_ref: repurpose-content
+    enabled: false

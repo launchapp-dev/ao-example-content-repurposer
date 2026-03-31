@@ -1,0 +1,23 @@
+default_workflow_ref: repurpose-content
+
+workflows:
+  - id: repurpose-content
+    name: "Content Repurposing Pipeline"
+    description: "Ingest long-form content, analyze themes, generate platform-specific variants, quality review with rework loop, finalize publication plan"
+    phases:
+      - ingest-content
+      - analyze-content
+      - generate-variants
+      - review-quality:
+          on_verdict:
+            rework:
+              target: generate-variants
+          max_rework_attempts: 3
+      - finalize-output
+    post_success:
+      merge:
+        strategy: squash
+        target_branch: main
+        create_pr: true
+        auto_merge: true
+        cleanup_worktree: true

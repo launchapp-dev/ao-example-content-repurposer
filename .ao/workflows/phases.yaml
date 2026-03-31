@@ -1,0 +1,138 @@
+phases:
+  ingest-content:
+    mode: agent
+    agent: content-ingester
+    directive: |
+      Read config/sources.json to get the list of sources to process.
+      For each source:
+        - If type is "url": use the fetch MCP to retrieve the content
+        - If type is "file": use the filesystem MCP to read the file at the given path
+      Process the FIRST source in the list (index 0) for this run.
+      Strip all boilerplate (navigation, ads, sidebars, cookie banners, footers).
+      Extract the clean article text along with: title, author, publication_date, url_or_path, word_count.
+      Write the result to data/source-content.json.
+      If the content is accessible and has 200+ words, set verdict = "has-content".
+      If the content is empty, inaccessible, or under 200 words, set verdict = "no-content"
+      and include a "reason" field explaining why.
+    capabilities:
+      mutates_state: true
+      writes_files: true
+    decision_contract:
+      required_fields: [verdict]
+      valid_verdicts: [has-content, no-content]
+
+  analyze-content:
+    mode: agent
+    agent: content-analyzer
+    directive: |
+      Read data/source-content.json to get the cleaned source content.
+      Use sequential-thinking MCP to work through a structured content analysis.
+      Extract and document:
+        1. themes: array of 3-5 core themes/key messages (each with a title and 1-sentence description)
+        2. quotes: array of 5-8 quotable passages (with quote text and context)
+        3. statistics: array of data points and specific numbers from the source
+        4. ctas: array of calls-to-action present or implied in the source
+        5. audience: primary audience segments this content targets
+        6. tone: overall content tone (formal/casual/technical/educational/inspirational)
+        7. platform_hooks: unique opening hook for each of: twitter, linkedin, email, instagram, youtube
+      Write the structured analysis to data/content-analysis.json.
+    capabilities:
+      mutates_state: true
+      writes_files: true
+
+  generate-variants:
+    mode: agent
+    agent: variant-writer
+    directive: |
+      Read data/content-analysis.json to understand the content themes, quotes, stats, and platform hooks.
+      Also read data/source-content.json for brand voice context (from the original config).
+      Read config/sources.json for brand_voice settings (tone, audience, avoid list).
+      Check if data/review-feedback.json exists — if it does, read it and address every feedback item.
+
+      Generate all 5 platform variants:
+      1. Twitter/X thread → output/variants/twitter-thread.md
+      2. LinkedIn post → output/variants/linkedin-post.md
+      3. Email newsletter snippet → output/variants/email-snippet.md
+      4. Instagram caption → output/variants/instagram-caption.md
+      5. YouTube description → output/variants/youtube-description.md
+
+      After writing all 5 files, create output/variants/manifest.json with:
+        - source metadata (title, url/path, word_count, ingested_at)
+        - variants array with: platform, file, key metric (tweet_count/char_count/word_count), status: "pending-review"
+        - rework_attempt: 0 (or increment from review-feedback.json if rework)
+    capabilities:
+      mutates_state: true
+      writes_files: true
+
+  review-quality:
+    mode: agent
+    agent: quality-reviewer
+    directive: |
+      Read all of the following:
+        - data/source-content.json (original source for fact-checking)
+        - data/content-analysis.json (themes and extracted quotes)
+        - output/variants/twitter-thread.md
+        - output/variants/linkedin-post.md
+        - output/variants/email-snippet.md
+        - output/variants/instagram-caption.md
+        - output/variants/youtube-description.md
+        - output/variants/manifest.json
+
+      Use sequential-thinking to evaluate all variants systematically across these dimensions:
+        1. Faithfulness — no hallucinated facts, stats, or quotes
+        2. Platform fit — length constraints, format conventions per platform
+        3. Consistency — coherent core message across all platforms
+        4. Engagement — compelling hooks, clear CTAs, genuine audience value
+
+      Always write data/review-report.md with your full evaluation.
+
+      If verdict is "rework": also write data/review-feedback.json with:
+        { "feedback": [ { "platform": "<name>", "issues": [...], "suggestions": [...] } ] }
+
+      Set verdict = "publish" | "rework" | "reject"
+        - publish: all criteria pass
+        - rework: fixable issues found (provide feedback)
+        - reject: fundamentally unsuitable content (do not include review-feedback.json)
+    capabilities:
+      mutates_state: true
+      writes_files: true
+    decision_contract:
+      required_fields: [verdict]
+      valid_verdicts: [publish, rework, reject]
+
+  finalize-output:
+    mode: agent
+    agent: content-analyzer
+    directive: |
+      Generate the final output report and publication calendar.
+
+      Read:
+        - data/source-content.json
+        - data/content-analysis.json
+        - data/review-report.md
+        - output/variants/manifest.json
+        - All files in output/variants/ (twitter-thread.md, linkedin-post.md, etc.)
+
+      Write output/summary.md with:
+        - Source title, URL/path, word count, processing date
+        - Key themes extracted (from content-analysis.json)
+        - Table of all variants: platform, file, status, key metric (chars/words/tweet count)
+        - Quality review results: verdict, faithfulness notes, attempts made
+        - Suggested publication schedule table (optimal posting times per platform based on
+          B2B SaaS audience best practices)
+
+      Write output/calendar.json with:
+        {
+          "source_title": "...",
+          "generated_at": "ISO timestamp",
+          "schedule": [
+            { "platform": "twitter", "suggested_day": "Tuesday", "suggested_time": "09:00 ET",
+              "file": "output/variants/twitter-thread.md", "status": "ready" },
+            ...
+          ]
+        }
+
+      Update output/variants/manifest.json to set all variant statuses to "ready".
+    capabilities:
+      mutates_state: true
+      writes_files: true
